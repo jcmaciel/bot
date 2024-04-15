@@ -1,5 +1,5 @@
 import test, { expect } from '@playwright/test'
-import { importTypebotInDatabase } from '@typebot.io/lib/playwright/databaseActions'
+import { importTypebotInDatabase } from '@typebot.io/playwright/databaseActions'
 import { createId } from '@paralleldrive/cuid2'
 import { getTestAsset } from '@/test/utils/playwright'
 
@@ -25,7 +25,7 @@ test.describe('Condition block', () => {
     await page.click('button:has-text("Greater than")', { force: true })
     await page.fill('input[placeholder="Type a number..."]', '80')
 
-    await page.click('button:has-text("Add a comparison")')
+    await page.click('button:has-text("Add comparison")')
 
     await page.fill(
       ':nth-match(input[placeholder="Search for a variable"], 2)',
@@ -49,7 +49,7 @@ test.describe('Condition block', () => {
     await page.click('button:has-text("Greater than")', { force: true })
     await page.fill('input[placeholder="Type a number..."]', '20')
 
-    await page.click('text=Preview')
+    await page.click('text=Test')
     await page
       .locator('typebot-standard')
       .locator('input[placeholder="Type a number..."]')

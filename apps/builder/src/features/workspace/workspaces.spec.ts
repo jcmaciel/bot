@@ -1,13 +1,13 @@
 import test, { expect } from '@playwright/test'
 import { createId } from '@paralleldrive/cuid2'
-import { defaultTextInputOptions, InputBlockType } from '@typebot.io/schemas'
-import { createTypebots } from '@typebot.io/lib/playwright/databaseActions'
+import { createTypebots } from '@typebot.io/playwright/databaseActions'
 import {
   proWorkspaceId,
   starterWorkspaceId,
-} from '@typebot.io/lib/playwright/databaseSetup'
-import { parseDefaultGroupWithBlock } from '@typebot.io/lib/playwright/databaseHelpers'
-import { mockSessionResponsesToOtherUser } from '@typebot.io/lib/playwright/testHelpers'
+} from '@typebot.io/playwright/databaseSetup'
+import { parseDefaultGroupWithBlock } from '@typebot.io/playwright/databaseHelpers'
+import { mockSessionResponsesToOtherUser } from '@typebot.io/playwright/testHelpers'
+import { InputBlockType } from '@typebot.io/schemas/features/blocks/inputs/constants'
 
 const proTypebotId = createId()
 const starterTypebotId = createId()
@@ -28,9 +28,7 @@ test.beforeAll(async () => {
       ...parseDefaultGroupWithBlock({
         type: InputBlockType.TEXT,
         options: {
-          ...defaultTextInputOptions,
           labels: {
-            ...defaultTextInputOptions.labels,
             placeholder: 'Hey there',
           },
         },
@@ -164,7 +162,7 @@ test("can't add new members when limit is reached", async ({ page }) => {
   await expect(page.locator('button >> text="Invite"')).toBeDisabled()
   await expect(
     page.locator(
-      'text="Upgrade your plan to work with more team members, and unlock awesome power features 🚀"'
+      'text="Upgrade your plan to work with more team members, and unlock awesome power features"'
     )
   ).toBeVisible()
   await page.click('text="Free workspace"', { force: true })

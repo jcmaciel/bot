@@ -7,7 +7,7 @@ export const parseButtonsReply =
   (inputValue: string, block: ChoiceInputBlock): ParsedReply => {
     const displayedItems =
       injectVariableValuesInButtonsInputBlock(state)(block).items
-    if (block.options.isMultipleChoice) {
+    if (block.options?.isMultipleChoice) {
       const longestItemsFirst = [...displayedItems].sort(
         (a, b) => (b.content?.length ?? 0) - (a.content?.length ?? 0)
       )
@@ -18,7 +18,9 @@ export const parseButtonsReply =
         (acc, item) => {
           if (
             item.content &&
-            acc.strippedInput.toLowerCase().includes(item.content.toLowerCase())
+            acc.strippedInput
+              .toLowerCase()
+              .includes(item.content.trim().toLowerCase())
           )
             return {
               strippedInput: acc.strippedInput.replace(item.content ?? '', ''),
@@ -69,8 +71,7 @@ export const parseButtonsReply =
     const matchedItem = longestItemsFirst.find(
       (item) =>
         item.id === inputValue ||
-        (item.content &&
-          inputValue.toLowerCase().trim() === item.content.toLowerCase().trim())
+        (item.content && inputValue.trim() === item.content.trim())
     )
     if (!matchedItem) return { status: 'fail' }
     return {

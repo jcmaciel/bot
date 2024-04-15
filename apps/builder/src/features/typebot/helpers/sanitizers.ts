@@ -1,22 +1,38 @@
+import { hasProPerks } from '@/features/billing/helpers/hasProPerks'
 import prisma from '@typebot.io/lib/prisma'
 import { Plan } from '@typebot.io/prisma'
-import {
-  Block,
-  InputBlockType,
-  IntegrationBlockType,
-  Typebot,
-} from '@typebot.io/schemas'
+import { Block, Typebot } from '@typebot.io/schemas'
+import { IntegrationBlockType } from '@typebot.io/schemas/features/blocks/integrations/constants'
+import { defaultSendEmailOptions } from '@typebot.io/schemas/features/blocks/integrations/sendEmail/constants'
 
 export const sanitizeSettings = (
   settings: Typebot['settings'],
-  workspacePlan: Plan
+  workspacePlan: Plan,
+  mode: 'create' | 'update'
 ): Typebot['settings'] => ({
   ...settings,
-  general: {
-    ...settings.general,
-    isBrandingEnabled:
-      workspacePlan === Plan.FREE ? false : settings.general.isBrandingEnabled,
-  },
+  publicShare: mode === 'create' ? undefined : settings.publicShare,
+  general:
+    workspacePlan === Plan.FREE || settings.general
+      ? {
+          ...settings.general,
+          isBrandingEnabled:
+            workspacePlan === Plan.FREE
+              ? true
+              : settings.general?.isBrandingEnabled,
+        }
+      : undefined,
+  whatsApp: settings.whatsApp
+    ? {
+        ...settings.whatsApp,
+        isEnabled:
+          mode === 'create'
+            ? false
+            : hasProPerks({ plan: workspacePlan })
+            ? settings.whatsApp.isEnabled
+            : false,
+      }
+    : undefined,
 })
 
 export const sanitizeGroups =
@@ -27,42 +43,17 @@ export const sanitizeGroups =
         ...group,
         blocks: await Promise.all(group.blocks.map(sanitizeBlock(workspaceId))),
       }))
-    )
+    ) as Promise<Typebot['groups']>
 
 const sanitizeBlock =
   (workspaceId: string) =>
   async (block: Block): Promise<Block> => {
+    if (!('options' in block) || !block.options) return block
+
+    if (!('credentialsId' in block.options) || !block.options.credentialsId)
+      return block
+
     switch (block.type) {
-      case InputBlockType.PAYMENT:
-        return {
-          ...block,
-          options: {
-            ...block.options,
-            credentialsId: await sanitizeCredentialsId(workspaceId)(
-              block.options.credentialsId
-            ),
-          },
-        }
-      case IntegrationBlockType.GOOGLE_SHEETS:
-        return {
-          ...block,
-          options: {
-            ...block.options,
-            credentialsId: await sanitizeCredentialsId(workspaceId)(
-              block.options.credentialsId
-            ),
-          },
-        }
-      case IntegrationBlockType.OPEN_AI:
-        return {
-          ...block,
-          options: {
-            ...block.options,
-            credentialsId: await sanitizeCredentialsId(workspaceId)(
-              block.options.credentialsId
-            ),
-          },
-        }
       case IntegrationBlockType.EMAIL:
         return {
           ...block,
@@ -70,12 +61,20 @@ const sanitizeBlock =
             ...block.options,
             credentialsId:
               (await sanitizeCredentialsId(workspaceId)(
-                block.options.credentialsId
-              )) ?? 'default',
+                block.options?.credentialsId
+              )) ?? defaultSendEmailOptions.credentialsId,
           },
         }
       default:
-        return block
+        return {
+          ...block,
+          options: {
+            ...block.options,
+            credentialsId: await sanitizeCredentialsId(workspaceId)(
+              block.options?.credentialsId
+            ),
+          },
+        }
     }
   }
 
@@ -104,7 +103,21 @@ export const isPublicIdNotAvailable = async (publicId: string) => {
   return typebotWithSameIdCount > 0
 }
 
-export const isCustomDomainNotAvailable = async (customDomain: string) => {
+export const isCustomDomainNotAvailable = async ({
+  customDomain,
+  workspaceId,
+}: {
+  customDomain: string
+  workspaceId: string
+}) => {
+  const domainCount = await prisma.customDomain.count({
+    where: {
+      workspaceId,
+      name: customDomain.split('/')[0],
+    },
+  })
+  if (domainCount === 0) return true
+
   const typebotWithSameDomainCount = await prisma.typebot.count({
     where: {
       customDomain,
@@ -112,4 +125,38 @@ export const isCustomDomainNotAvailable = async (customDomain: string) => {
   })
 
   return typebotWithSameDomainCount > 0
+}
+
+export const sanitizeFolderId = async ({
+  folderId,
+  workspaceId,
+}: {
+  folderId: string | null
+  workspaceId: string
+}) => {
+  if (!folderId) return
+  const folderCount = await prisma.dashboardFolder.count({
+    where: {
+      id: folderId,
+      workspaceId,
+    },
+  })
+  return folderCount !== 0 ? folderId : undefined
+}
+
+export const sanitizeCustomDomain = async ({
+  customDomain,
+  workspaceId,
+}: {
+  customDomain?: string | null
+  workspaceId: string
+}) => {
+  if (!customDomain) return customDomain
+  const domainCount = await prisma.customDomain.count({
+    where: {
+      name: customDomain?.split('/')[0],
+      workspaceId,
+    },
+  })
+  return domainCount === 0 ? null : customDomain
 }

@@ -4,13 +4,13 @@ import {
   ZemanticAiCredentials,
   ZemanticAiResponse,
 } from '@typebot.io/schemas/features/blocks/integrations/zemanticAi'
-import got from 'got'
-import { decrypt } from '@typebot.io/lib/api/encryption'
+import ky from 'ky'
+import { decrypt } from '@typebot.io/lib/api/encryption/decrypt'
 import { byId, isDefined, isEmpty } from '@typebot.io/lib'
-import { getDefinedVariables, parseAnswers } from '@typebot.io/lib/results'
-import prisma from '@typebot.io/lib/prisma'
 import { ExecuteIntegrationResponse } from '../../../types'
-import { updateVariablesInSession } from '../../../variables/updateVariablesInSession'
+import { updateVariablesInSession } from '@typebot.io/variables/updateVariablesInSession'
+import { getCredentials } from '../../../queries/getCredentials'
+import { parseAnswers } from '@typebot.io/results/parseAnswers'
 
 const URL = 'https://api.zemantic.ai/v1/search-documents'
 
@@ -20,26 +20,22 @@ export const executeZemanticAiBlock = async (
 ): Promise<ExecuteIntegrationResponse> => {
   let newSessionState = state
 
-  const noCredentialsError = {
-    status: 'error',
-    description: 'Make sure to select a Zemantic AI account',
-  }
-
-  const zemanticRequestError = {
-    status: 'error',
-    description: 'Could not execute Zemantic AI request',
-  }
-
-  const credentials = await prisma.credentials.findUnique({
-    where: {
-      id: block.options.credentialsId,
-    },
-  })
-  if (!credentials) {
-    console.error('Could not find credentials in database')
+  if (!block.options?.credentialsId)
     return {
       outgoingEdgeId: block.outgoingEdgeId,
-      logs: [noCredentialsError],
+    }
+
+  const credentials = await getCredentials(block.options.credentialsId)
+
+  if (!credentials) {
+    return {
+      outgoingEdgeId: block.outgoingEdgeId,
+      logs: [
+        {
+          status: 'error',
+          description: 'Make sure to select a Zemantic AI account',
+        },
+      ],
     }
   }
   const { apiKey } = (await decrypt(
@@ -50,12 +46,12 @@ export const executeZemanticAiBlock = async (
   const { typebot, answers } = newSessionState.typebotsQueue[0]
 
   const templateVars = parseAnswers({
-    variables: getDefinedVariables(typebot.variables),
+    variables: typebot.variables,
     answers: answers,
   })
 
   try {
-    const res: ZemanticAiResponse = await got
+    const res: ZemanticAiResponse = await ky
       .post(URL, {
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -108,12 +104,22 @@ export const executeZemanticAiBlock = async (
   } catch (e) {
     console.error(e)
     return {
+      startTimeShouldBeUpdated: true,
       outgoingEdgeId: block.outgoingEdgeId,
-      logs: [zemanticRequestError],
+      logs: [
+        {
+          status: 'error',
+          description: 'Could not execute Zemantic AI request',
+        },
+      ],
     }
   }
 
-  return { outgoingEdgeId: block.outgoingEdgeId, newSessionState }
+  return {
+    outgoingEdgeId: block.outgoingEdgeId,
+    newSessionState,
+    startTimeShouldBeUpdated: true,
+  }
 }
 
 const replaceTemplateVars = (

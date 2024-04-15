@@ -1,8 +1,9 @@
 import test, { expect } from '@playwright/test'
-import { createTypebots } from '@typebot.io/lib/playwright/databaseActions'
-import { parseDefaultGroupWithBlock } from '@typebot.io/lib/playwright/databaseHelpers'
-import { defaultPhoneInputOptions, InputBlockType } from '@typebot.io/schemas'
+import { createTypebots } from '@typebot.io/playwright/databaseActions'
+import { parseDefaultGroupWithBlock } from '@typebot.io/playwright/databaseHelpers'
 import { createId } from '@paralleldrive/cuid2'
+import { InputBlockType } from '@typebot.io/schemas/features/blocks/inputs/constants'
+import { defaultPhoneInputOptions } from '@typebot.io/schemas/features/blocks/inputs/phone/constants'
 
 test.describe('Phone input block', () => {
   test('options should work', async ({ page }) => {
@@ -12,20 +13,18 @@ test.describe('Phone input block', () => {
         id: typebotId,
         ...parseDefaultGroupWithBlock({
           type: InputBlockType.PHONE,
-          options: defaultPhoneInputOptions,
         }),
       },
     ])
 
     await page.goto(`/typebots/${typebotId}/edit`)
 
-    await page.click('text=Preview')
+    await page.click('text=Test')
     await expect(
       page.locator(
         `input[placeholder="${defaultPhoneInputOptions.labels.placeholder}"]`
       )
     ).toHaveAttribute('type', 'tel')
-    await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled()
 
     await page.click(`text=${defaultPhoneInputOptions.labels.placeholder}`)
     await page.getByLabel('Placeholder:').fill('+33 XX XX XX XX')

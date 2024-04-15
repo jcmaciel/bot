@@ -6,7 +6,7 @@ import {
   Workspace,
 } from '@typebot.io/prisma'
 import Stripe from 'stripe'
-import { proWorkspaceId } from '@typebot.io/lib/playwright/databaseSetup'
+import { proWorkspaceId } from '@typebot.io/playwright/databaseSetup'
 import { env } from '@typebot.io/env'
 
 const prisma = new PrismaClient()
@@ -18,7 +18,7 @@ const stripe = new Stripe(env.STRIPE_SECRET_KEY ?? '', {
 export const addSubscriptionToWorkspace = async (
   workspaceId: string,
   items: Stripe.SubscriptionCreateParams.Item[],
-  metadata: Pick<Workspace, 'additionalChatsIndex' | 'plan'>
+  metadata: Pick<Workspace, 'plan'>
 ) => {
   const { id: stripeId } = await stripe.customers.create({
     email: 'test-user@gmail.com',

@@ -1,11 +1,15 @@
 import resolve from '@rollup/plugin-node-resolve'
 import terser from '@rollup/plugin-terser'
 import { babel } from '@rollup/plugin-babel'
-import typescript from '@rollup/plugin-typescript'
 import { typescriptPaths } from 'rollup-plugin-typescript-paths'
-import alias from '@rollup/plugin-alias'
+import typescript from '@rollup/plugin-typescript'
+import fs from 'fs'
 
 const extensions = ['.ts', '.tsx']
+
+const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+const packageVersion = packageJson.version
+const preamble = `// v${packageVersion}`
 
 const indexConfig = {
   input: './src/index.ts',
@@ -15,11 +19,6 @@ const indexConfig = {
   },
   external: ['next/dynamic', 'react', 'react/jsx-runtime'],
   plugins: [
-    alias({
-      entries: [
-        { find: '@typebot.io/js/dist/web', replacement: '../../js/dist/web' },
-      ],
-    }),
     resolve({ extensions }),
     babel({
       babelHelpers: 'bundled',
@@ -27,9 +26,9 @@ const indexConfig = {
       presets: ['@babel/preset-react', '@babel/preset-typescript'],
       extensions,
     }),
-    typescript(),
     typescriptPaths({ preserveExtensions: true }),
-    terser({ output: { comments: false } }),
+    typescript(),
+    terser({ format: { preamble } }),
   ],
 }
 

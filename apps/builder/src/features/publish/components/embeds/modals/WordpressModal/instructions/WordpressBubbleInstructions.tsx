@@ -8,12 +8,17 @@ import {
   Link,
   Stack,
   Text,
+  Code,
 } from '@chakra-ui/react'
 import { BubbleProps } from '@typebot.io/nextjs'
 import { useState } from 'react'
 import { BubbleSettings } from '../../../settings/BubbleSettings/BubbleSettings'
 import { parseApiHostValue, parseInitBubbleCode } from '../../../snippetParsers'
 import { parseDefaultBubbleTheme } from '../../Javascript/instructions/JavascriptBubbleInstructions'
+import packageJson from '../../../../../../../../../../packages/embeds/js/package.json'
+import { isCloudProdInstance } from '@/helpers/isCloudProdInstance'
+
+const typebotCloudLibraryVersion = '0.2'
 
 type Props = {
   publicId: string
@@ -33,7 +38,7 @@ export const WordpressBubbleInstructions = ({ publicId }: Props) => {
     theme: {
       ...theme,
       chatWindow: {
-        backgroundColor: typebot?.theme.general.background.content ?? '#fff',
+        backgroundColor: typebot?.theme.general?.background?.content ?? '#fff',
       },
     },
     previewMessage,
@@ -53,11 +58,19 @@ export const WordpressBubbleInstructions = ({ publicId }: Props) => {
         </Link>
       </ListItem>
       <ListItem>
+        Set <Code>Library version</Code> to{' '}
+        <Code>
+          {isCloudProdInstance()
+            ? typebotCloudLibraryVersion
+            : packageJson.version}
+        </Code>
+      </ListItem>
+      <ListItem>
         <Stack spacing={4}>
           <BubbleSettings
             previewMessage={previewMessage}
             defaultPreviewMessageAvatar={
-              typebot?.theme.chat.hostAvatar?.url ?? ''
+              typebot?.theme.chat?.hostAvatar?.url ?? ''
             }
             theme={theme}
             onPreviewMessageChange={setPreviewMessage}

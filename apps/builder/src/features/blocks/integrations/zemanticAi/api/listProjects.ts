@@ -3,34 +3,15 @@ import { authenticatedProcedure } from '@/helpers/server/trpc'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { isReadWorkspaceFobidden } from '@/features/workspace/helpers/isReadWorkspaceFobidden'
-import { decrypt } from '@typebot.io/lib/api'
+import { decrypt } from '@typebot.io/lib/api/encryption/decrypt'
 import { ZemanticAiCredentials } from '@typebot.io/schemas/features/blocks/integrations/zemanticAi'
-import got from 'got'
+import ky from 'ky'
 
 export const listProjects = authenticatedProcedure
-  .meta({
-    openapi: {
-      method: 'GET',
-      path: '/zemantic-ai/projects',
-      protect: true,
-      summary: 'List Zemantic AI projects',
-      tags: ['ZemanticAi'],
-    },
-  })
   .input(
     z.object({
       credentialsId: z.string(),
       workspaceId: z.string(),
-    })
-  )
-  .output(
-    z.object({
-      projects: z.array(
-        z.object({
-          label: z.string(),
-          value: z.string(),
-        })
-      ),
     })
   )
   .query(async ({ input: { credentialsId, workspaceId }, ctx: { user } }) => {
@@ -77,7 +58,7 @@ export const listProjects = authenticatedProcedure
     const url = 'https://api.zemantic.ai/v1/projects'
 
     try {
-      const response = await got
+      const response = await ky
         .get(url, {
           headers: {
             Authorization: `Bearer ${data.apiKey}`,

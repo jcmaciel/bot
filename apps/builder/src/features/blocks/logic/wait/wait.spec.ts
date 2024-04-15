@@ -1,5 +1,5 @@
 import test, { expect } from '@playwright/test'
-import { importTypebotInDatabase } from '@typebot.io/lib/playwright/databaseActions'
+import { importTypebotInDatabase } from '@typebot.io/playwright/databaseActions'
 import { createId } from '@paralleldrive/cuid2'
 import { getTestAsset } from '@/test/utils/playwright'
 
@@ -15,7 +15,7 @@ test.describe('Wait block', () => {
     await page.click('text=Configure...')
     await page.getByRole('textbox', { name: 'Seconds to wait for:' }).fill('3')
 
-    await page.click('text=Preview')
+    await page.click('text=Test')
     await page.getByRole('button', { name: 'Wait now' }).click()
     await page.waitForTimeout(1000)
     await expect(

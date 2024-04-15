@@ -11,13 +11,16 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { customAdapter } from '../../../features/auth/api/customAdapter'
 import { User } from '@typebot.io/prisma'
 import { getAtPath, isDefined } from '@typebot.io/lib'
-import { mockedUser } from '@/features/auth/mockedUser'
+import { mockedUser } from '@typebot.io/lib/mockedUser'
 import { getNewUserInvitations } from '@/features/auth/helpers/getNewUserInvitations'
 import { sendVerificationRequest } from '@/features/auth/helpers/sendVerificationRequest'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis/nodejs'
-import got from 'got'
+import ky from 'ky'
 import { env } from '@typebot.io/env'
+import * as Sentry from '@sentry/nextjs'
+import { getIp } from '@typebot.io/lib/getIp'
+import { trackEvents } from '@typebot.io/telemetry/trackEvents'
 
 const providers: Provider[] = []
 
@@ -123,7 +126,11 @@ if (env.CUSTOM_OAUTH_WELL_KNOWN_URL) {
   })
 }
 
-export const authOptions: AuthOptions = {
+export const getAuthOptions = ({
+  restricted,
+}: {
+  restricted?: 'rate-limited'
+}): AuthOptions => ({
   adapter: customAdapter(prisma),
   secret: env.ENCRYPTION_SECRET,
   providers,
@@ -133,6 +140,15 @@ export const authOptions: AuthOptions = {
   pages: {
     signIn: '/signin',
     newUser: env.NEXT_PUBLIC_ONBOARDING_TYPEBOT_ID ? '/onboarding' : undefined,
+    error: '/signin',
+  },
+  events: {
+    signIn({ user }) {
+      Sentry.setUser({ id: user.id })
+    },
+    signOut() {
+      Sentry.setUser(null)
+    },
   },
   callbacks: {
     session: async ({ session, user }) => {
@@ -144,21 +160,29 @@ export const authOptions: AuthOptions = {
       }
     },
     signIn: async ({ account, user }) => {
+      if (restricted === 'rate-limited') throw new Error('rate-limited')
       if (!account) return false
       const isNewUser = !('createdAt' in user && isDefined(user.createdAt))
       if (isNewUser && user.email) {
-        const { body } = await got.get(
-          'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf'
-        )
-        const disposableEmailDomains = body.split('\n')
+        const data = await ky
+          .get(
+            'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf'
+          )
+          .text()
+        const disposableEmailDomains = data.split('\n')
         if (disposableEmailDomains.includes(user.email.split('@')[1]))
           return false
       }
-      if (env.DISABLE_SIGNUP && isNewUser && user.email) {
+      if (
+        env.DISABLE_SIGNUP &&
+        isNewUser &&
+        user.email &&
+        !env.ADMIN_EMAIL?.includes(user.email)
+      ) {
         const { invitations, workspaceInvitations } =
           await getNewUserInvitations(prisma, user.email)
         if (invitations.length === 0 && workspaceInvitations.length === 0)
-          return false
+          throw new Error('sign-up-disabled')
       }
       const requiredGroups = getRequiredGroups(account.provider)
       if (requiredGroups.length > 0) {
@@ -168,7 +192,7 @@ export const authOptions: AuthOptions = {
       return true
     },
   },
-}
+})
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const isMockingSession =
@@ -179,24 +203,21 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const requestIsFromCompanyFirewall = req.method === 'HEAD'
   if (requestIsFromCompanyFirewall) return res.status(200).end()
 
+  let restricted: 'rate-limited' | undefined
+
   if (
     rateLimit &&
-    req.url === '/api/auth/signin/email' &&
+    req.url?.startsWith('/api/auth/signin/email') &&
     req.method === 'POST'
   ) {
-    let ip = req.headers['x-real-ip'] as string | undefined
-    if (!ip) {
-      const forwardedFor = req.headers['x-forwarded-for']
-      if (Array.isArray(forwardedFor)) {
-        ip = forwardedFor.at(0)
-      } else {
-        ip = forwardedFor?.split(',').at(0) ?? 'Unknown'
-      }
+    const ip = getIp(req)
+    if (ip) {
+      const { success } = await rateLimit.limit(ip)
+      if (!success) restricted = 'rate-limited'
     }
-    const { success } = await rateLimit.limit(ip as string)
-    if (!success) return res.status(429).json({ error: 'Too many requests' })
   }
-  return await NextAuth(req, res, authOptions)
+
+  return await NextAuth(req, res, getAuthOptions({ restricted }))
 }
 
 const updateLastActivityDate = async (user: User) => {
@@ -205,11 +226,18 @@ const updateLastActivityDate = async (user: User) => {
     first.getMonth() === second.getMonth() &&
     first.getDate() === second.getDate()
 
-  if (!datesAreOnSameDay(user.lastActivityAt, new Date()))
+  if (!datesAreOnSameDay(user.lastActivityAt, new Date())) {
     await prisma.user.updateMany({
       where: { id: user.id },
       data: { lastActivityAt: new Date() },
     })
+    await trackEvents([
+      {
+        name: 'User logged in',
+        userId: user.id,
+      },
+    ])
+  }
 }
 
 const getUserGroups = async (account: Account): Promise<string[]> => {

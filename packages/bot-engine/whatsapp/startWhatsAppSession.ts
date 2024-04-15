@@ -1,8 +1,6 @@
 import prisma from '@typebot.io/lib/prisma'
 import {
-  ChatReply,
-  ComparisonOperators,
-  LogicalOperator,
+  ContinueChatResponse,
   PublicTypebot,
   SessionState,
   Settings,
@@ -12,15 +10,18 @@ import {
   WhatsAppCredentials,
   defaultSessionExpiryTimeout,
 } from '@typebot.io/schemas/features/whatsapp'
-import { isInputBlock, isNotDefined } from '@typebot.io/lib/utils'
+import { isNotDefined } from '@typebot.io/lib/utils'
 import { startSession } from '../startSession'
-import { getNextGroup } from '../getNextGroup'
-import { continueBotFlow } from '../continueBotFlow'
-import { upsertResult } from '../queries/upsertResult'
+import {
+  LogicalOperator,
+  ComparisonOperators,
+} from '@typebot.io/schemas/features/blocks/logic/condition/constants'
+import { VisitedEdge } from '@typebot.io/prisma'
+import { Reply } from '../types'
 
 type Props = {
-  incomingMessage?: string
-  workspaceId?: string
+  incomingMessage?: Reply
+  workspaceId: string
   credentials: WhatsAppCredentials['data'] & Pick<WhatsAppCredentials, 'id'>
   contact: NonNullable<SessionState['whatsApp']>['contact']
 }
@@ -31,10 +32,11 @@ export const startWhatsAppSession = async ({
   credentials,
   contact,
 }: Props): Promise<
-  | (ChatReply & {
+  | (ContinueChatResponse & {
       newSessionState: SessionState
+      visitedEdges: VisitedEdge[]
     })
-  | undefined
+  | { error: string }
 > => {
   const publicTypebotsWithWhatsAppEnabled =
     (await prisma.publicTypebot.findMany({
@@ -59,27 +61,40 @@ export const startWhatsAppSession = async ({
       publicTypebot.settings.whatsApp?.isEnabled
   )
 
-  const publicTypebot =
-    botsWithWhatsAppEnabled.find(
-      (publicTypebot) =>
-        publicTypebot.settings.whatsApp?.startCondition &&
-        messageMatchStartCondition(
-          incomingMessage ?? '',
-          publicTypebot.settings.whatsApp?.startCondition
-        )
-    ) ?? botsWithWhatsAppEnabled[0]
+  const publicTypebotWithMatchedCondition = botsWithWhatsAppEnabled.find(
+    (publicTypebot) =>
+      (publicTypebot.settings.whatsApp?.startCondition?.comparisons.length ??
+        0) > 0 &&
+      messageMatchStartCondition(
+        incomingMessage ?? '',
+        publicTypebot.settings.whatsApp?.startCondition
+      )
+  )
 
-  if (isNotDefined(publicTypebot)) return
+  const publicTypebot =
+    publicTypebotWithMatchedCondition ??
+    botsWithWhatsAppEnabled.find(
+      (publicTypebot) => !publicTypebot.settings.whatsApp?.startCondition
+    )
+
+  if (isNotDefined(publicTypebot))
+    return botsWithWhatsAppEnabled.length > 0
+      ? { error: 'Message did not matched any condition' }
+      : { error: 'No public typebot with WhatsApp integration found' }
 
   const sessionExpiryTimeoutHours =
     publicTypebot.settings.whatsApp?.sessionExpiryTimeout ??
     defaultSessionExpiryTimeout
 
-  let chatReply = await startSession({
+  return startSession({
+    version: 2,
+    message: incomingMessage,
     startParams: {
-      typebot: publicTypebot.typebot.publicId as string,
+      type: 'live',
+      publicId: publicTypebot.typebot.publicId as string,
+      isOnlyRegistering: false,
+      isStreamEnabled: false,
     },
-    userId: undefined,
     initialSessionState: {
       whatsApp: {
         contact,
@@ -87,38 +102,14 @@ export const startWhatsAppSession = async ({
       expiryTimeout: sessionExpiryTimeoutHours * 60 * 60 * 1000,
     },
   })
-
-  let sessionState: SessionState = chatReply.newSessionState
-
-  // If first block is an input block, we can directly continue the bot flow
-  const firstEdgeId =
-    sessionState.typebotsQueue[0].typebot.groups[0].blocks[0].outgoingEdgeId
-  const nextGroup = await getNextGroup(sessionState)(firstEdgeId)
-  sessionState = nextGroup.newSessionState
-  const firstBlock = nextGroup.group?.blocks.at(0)
-  if (firstBlock && isInputBlock(firstBlock)) {
-    const resultId = sessionState.typebotsQueue[0].resultId
-    if (resultId)
-      await upsertResult({
-        hasStarted: true,
-        isCompleted: false,
-        resultId,
-        typebot: sessionState.typebotsQueue[0].typebot,
-      })
-    chatReply = await continueBotFlow({
-      ...sessionState,
-      currentBlock: { groupId: firstBlock.groupId, blockId: firstBlock.id },
-    })(incomingMessage)
-  }
-
-  return chatReply
 }
 
 export const messageMatchStartCondition = (
-  message: string,
+  message: Reply,
   startCondition: NonNullable<Settings['whatsApp']>['startCondition']
 ) => {
   if (!startCondition) return true
+  if (typeof message !== 'string') return false
   return startCondition.logicalOperator === LogicalOperator.AND
     ? startCondition.comparisons.every((comparison) =>
         matchComparison(

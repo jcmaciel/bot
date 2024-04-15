@@ -1,4 +1,3 @@
-/* eslint-disable solid/reactivity */
 import { initGoogleAnalytics } from '@/lib/gtag'
 import { gtmBodyElement } from '@/lib/gtm'
 import { initPixel } from '@/lib/pixel'
@@ -19,8 +18,6 @@ export const injectStartProps = async (
   const googleAnalyticsId = startPropsToInject.googleAnalyticsId
   if (isNotEmpty(googleAnalyticsId))
     await initGoogleAnalytics(googleAnalyticsId)
-  const pixelIds = startPropsToInject.pixelId
-    ? [startPropsToInject.pixelId]
-    : startPropsToInject.pixelIds
+  const pixelIds = startPropsToInject.pixelIds
   if (isDefined(pixelIds)) initPixel(pixelIds)
 }

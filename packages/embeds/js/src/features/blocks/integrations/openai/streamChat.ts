@@ -1,37 +1,50 @@
 import { ClientSideActionContext } from '@/types'
 import { guessApiHost } from '@/utils/guessApiHost'
 import { isNotEmpty } from '@typebot.io/lib/utils'
+import { createUniqueId } from 'solid-js'
 
 let abortController: AbortController | null = null
 const secondsToWaitBeforeRetries = 3
 const maxRetryAttempts = 3
 
+const edgeRuntimePath = '/api/integrations/openai/streamer'
+const nodejsRuntimePath = (sessionId: string) =>
+  `/api/v1/sessions/${sessionId}/streamMessage`
+
 export const streamChat =
   (context: ClientSideActionContext & { retryAttempt?: number }) =>
-  async (
-    messages: {
+  async ({
+    messages,
+    runtime,
+    onMessageStream,
+  }: {
+    messages?: {
       content?: string | undefined
       role?: 'system' | 'user' | 'assistant' | undefined
-    }[],
-    { onMessageStream }: { onMessageStream?: (message: string) => void }
-  ): Promise<{ message?: string; error?: object }> => {
+    }[]
+    runtime: 'edge' | 'nodejs'
+    onMessageStream?: (props: { id: string; message: string }) => void
+  }): Promise<{ message?: string; error?: object }> => {
     try {
       abortController = new AbortController()
 
       const apiHost = context.apiHost
 
       const res = await fetch(
-        `${
-          isNotEmpty(apiHost) ? apiHost : guessApiHost()
-        }/api/integrations/openai/streamer`,
+        isNotEmpty(apiHost)
+          ? apiHost
+          : guessApiHost() +
+              (runtime === 'edge'
+                ? edgeRuntimePath
+                : nodejsRuntimePath(context.sessionId)),
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sessionId: context.sessionId,
             messages,
+            sessionId: runtime === 'edge' ? context.sessionId : undefined,
           }),
           signal: abortController.signal,
         }
@@ -48,7 +61,7 @@ export const streamChat =
           return streamChat({
             ...context,
             retryAttempt: (context.retryAttempt ?? 0) + 1,
-          })(messages, { onMessageStream })
+          })({ messages, onMessageStream, runtime })
         }
         return {
           error: (await res.json()) || 'Failed to fetch the chat response.',
@@ -64,6 +77,8 @@ export const streamChat =
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
 
+      const id = createUniqueId()
+
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const { done, value } = await reader.read()
@@ -72,7 +87,7 @@ export const streamChat =
         }
         const chunk = decoder.decode(value)
         message += chunk
-        if (onMessageStream) onMessageStream(message)
+        if (onMessageStream) onMessageStream({ id, message })
         if (abortController === null) {
           reader.cancel()
           break

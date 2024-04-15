@@ -1,6 +1,7 @@
 import prisma from '@typebot.io/lib/prisma'
-import { getDefinedVariables } from '@typebot.io/lib/results'
+import { Prisma } from '@typebot.io/prisma'
 import { TypebotInSession } from '@typebot.io/schemas'
+import { filterVariablesWithValues } from '@typebot.io/variables/filterVariablesWithValues'
 
 type Props = {
   resultId: string
@@ -8,37 +9,27 @@ type Props = {
   hasStarted: boolean
   isCompleted: boolean
 }
-export const upsertResult = async ({
+export const upsertResult = ({
   resultId,
   typebot,
   hasStarted,
   isCompleted,
-}: Props) => {
-  const existingResult = await prisma.result.findUnique({
+}: Props): Prisma.PrismaPromise<any> => {
+  const variablesWithValue = filterVariablesWithValues(typebot.variables)
+  return prisma.result.upsert({
     where: { id: resultId },
+    update: {
+      isCompleted: isCompleted ? true : undefined,
+      hasStarted,
+      variables: variablesWithValue,
+    },
+    create: {
+      id: resultId,
+      typebotId: typebot.id,
+      isCompleted: isCompleted ? true : false,
+      hasStarted,
+      variables: variablesWithValue,
+    },
     select: { id: true },
-  })
-  const variablesWithValue = getDefinedVariables(typebot.variables)
-
-  if (existingResult) {
-    return prisma.result.updateMany({
-      where: { id: resultId },
-      data: {
-        isCompleted: isCompleted ? true : undefined,
-        hasStarted,
-        variables: variablesWithValue,
-      },
-    })
-  }
-  return prisma.result.createMany({
-    data: [
-      {
-        id: resultId,
-        typebotId: typebot.id,
-        isCompleted: isCompleted ? true : false,
-        hasStarted,
-        variables: variablesWithValue,
-      },
-    ],
   })
 }

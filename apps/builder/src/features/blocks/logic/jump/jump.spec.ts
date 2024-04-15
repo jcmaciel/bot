@@ -1,5 +1,5 @@
 import test, { expect } from '@playwright/test'
-import { importTypebotInDatabase } from '@typebot.io/lib/playwright/databaseActions'
+import { importTypebotInDatabase } from '@typebot.io/playwright/databaseActions'
 import { createId } from '@paralleldrive/cuid2'
 import { getTestAsset } from '@/test/utils/playwright'
 
@@ -16,7 +16,7 @@ test('should work as expected', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Group #1' }).click()
   await page.getByPlaceholder('Select a block').click()
   await page.getByRole('menuitem', { name: 'Block #2' }).click()
-  await page.getByRole('button', { name: 'Preview' }).click()
+  await page.getByRole('button', { name: 'Test' }).click()
   await page.getByPlaceholder('Type your answer...').fill('Hi there!')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(

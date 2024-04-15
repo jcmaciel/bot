@@ -1,9 +1,10 @@
 import { SendButton } from '@/components/SendButton'
 import { InputSubmitContent } from '@/types'
-import type { RatingInputBlock, RatingInputOptions } from '@typebot.io/schemas'
-import { createSignal, For, Match, Switch } from 'solid-js'
+import type { RatingInputBlock } from '@typebot.io/schemas'
+import { createSignal, For, Match, Switch, Show } from 'solid-js'
 import { isDefined, isEmpty, isNotDefined } from '@typebot.io/lib'
 import { Button } from '@/components/Button'
+import { defaultRatingInputOptions } from '@typebot.io/schemas/features/blocks/inputs/rating/constants'
 
 type Props = {
   block: RatingInputBlock
@@ -24,14 +25,14 @@ export const RatingForm = (props: Props) => {
   }
 
   const handleClick = (rating: number) => {
-    if (props.block.options.isOneClickSubmitEnabled)
+    if (props.block.options?.isOneClickSubmitEnabled)
       props.onSubmit({ value: rating.toString() })
     setRating(rating)
   }
 
   return (
     <form class="flex flex-col gap-2" onSubmit={handleSubmit}>
-      {props.block.options.labels.left && (
+      {props.block.options?.labels?.left && (
         <span class="text-sm w-full rating-label">
           {props.block.options.labels.left}
         </span>
@@ -40,8 +41,15 @@ export const RatingForm = (props: Props) => {
         <For
           each={Array.from(
             Array(
-              props.block.options.length +
-                (props.block.options.buttonType === 'Numbers' ? 1 : 0)
+              (props.block.options?.length ??
+                defaultRatingInputOptions.length) +
+                ((props.block.options?.buttonType ??
+                  defaultRatingInputOptions.buttonType) === 'Numbers'
+                  ? -(
+                      ((props.block.options?.startsAt as number | undefined) ??
+                        defaultRatingInputOptions.startsAt) - 1
+                    )
+                  : 0)
             )
           )}
         >
@@ -50,14 +58,19 @@ export const RatingForm = (props: Props) => {
               {...props.block.options}
               rating={rating()}
               idx={
-                idx() + (props.block.options.buttonType === 'Numbers' ? 0 : 1)
+                idx() +
+                ((props.block.options?.buttonType ??
+                  defaultRatingInputOptions.buttonType) === 'Numbers'
+                  ? (props.block.options?.startsAt as number | undefined) ??
+                    defaultRatingInputOptions.startsAt
+                  : 1)
               }
               onClick={handleClick}
             />
           )}
         </For>
       </div>
-      {props.block.options.labels.right && (
+      {props.block.options?.labels?.right && (
         <span class="text-sm w-full text-right pr-2 rating-label">
           {props.block.options.labels.right}
         </span>
@@ -66,7 +79,8 @@ export const RatingForm = (props: Props) => {
       <div class="flex justify-end">
         {isDefined(rating()) && (
           <SendButton disableIcon>
-            {props.block.options?.labels?.button ?? 'Send'}
+            {props.block.options?.labels?.button ??
+              defaultRatingInputOptions.labels.button}
           </SendButton>
         )}
       </div>
@@ -78,7 +92,7 @@ type RatingButtonProps = {
   rating?: number
   idx: number
   onClick: (rating: number) => void
-} & RatingInputOptions
+} & RatingInputBlock['options']
 
 const RatingButton = (props: RatingButtonProps) => {
   const handleClick = (e: MouseEvent) => {
@@ -87,20 +101,37 @@ const RatingButton = (props: RatingButtonProps) => {
   }
   return (
     <Switch>
-      <Match when={props.buttonType === 'Numbers'}>
-        <Button
-          on:click={handleClick}
-          class={
-            props.isOneClickSubmitEnabled ||
-            (isDefined(props.rating) && props.idx <= props.rating)
-              ? ''
-              : 'selectable'
-          }
-        >
-          {props.idx}
-        </Button>
+      <Match
+        when={
+          (props.buttonType ?? defaultRatingInputOptions.buttonType) ===
+          'Numbers'
+        }
+      >
+        <Show when={props.isOneClickSubmitEnabled}>
+          <Button on:click={handleClick}>{props.idx}</Button>
+        </Show>
+        <Show when={!props.isOneClickSubmitEnabled}>
+          <div
+            role="checkbox"
+            aria-checked={isDefined(props.rating) && props.idx <= props.rating}
+            on:click={handleClick}
+            class={
+              'py-2 px-4 font-semibold focus:outline-none cursor-pointer select-none typebot-selectable' +
+              (isDefined(props.rating) && props.idx <= props.rating
+                ? ' selected'
+                : '')
+            }
+          >
+            {props.idx}
+          </div>
+        </Show>
       </Match>
-      <Match when={props.buttonType !== 'Numbers'}>
+      <Match
+        when={
+          (props.buttonType ?? defaultRatingInputOptions.buttonType) !==
+          'Numbers'
+        }
+      >
         <div
           class={
             'flex justify-center items-center rating-icon-container cursor-pointer ' +
@@ -109,7 +140,7 @@ const RatingButton = (props: RatingButtonProps) => {
               : '')
           }
           innerHTML={
-            props.customIcon.isEnabled && !isEmpty(props.customIcon.svg)
+            props.customIcon?.isEnabled && !isEmpty(props.customIcon.svg)
               ? props.customIcon.svg
               : defaultIcon
           }

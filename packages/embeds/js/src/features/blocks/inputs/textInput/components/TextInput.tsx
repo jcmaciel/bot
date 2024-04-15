@@ -5,6 +5,8 @@ import { InputSubmitContent } from '@/types'
 import { isMobile } from '@/utils/isMobileSignal'
 import type { TextInputBlock } from '@typebot.io/schemas'
 import { createSignal, onCleanup, onMount } from 'solid-js'
+import { defaultTextInputOptions } from '@typebot.io/schemas/features/blocks/inputs/text/constants'
+import clsx from 'clsx'
 
 type Props = {
   block: TextInputBlock
@@ -19,19 +21,21 @@ export const TextInput = (props: Props) => {
   const handleInput = (inputValue: string) => setInputValue(inputValue)
 
   const checkIfInputIsValid = () =>
-    inputValue() !== '' && inputRef?.reportValidity()
+    inputRef?.value !== '' && inputRef?.reportValidity()
 
   const submit = () => {
-    if (checkIfInputIsValid()) props.onSubmit({ value: inputValue() })
+    if (checkIfInputIsValid())
+      props.onSubmit({ value: inputRef?.value ?? inputValue() })
+    else inputRef?.focus()
   }
 
   const submitWhenEnter = (e: KeyboardEvent) => {
-    if (props.block.options.isLong) return
+    if (props.block.options?.isLong) return
     if (e.key === 'Enter') submit()
   }
 
   const submitIfCtrlEnter = (e: KeyboardEvent) => {
-    if (!props.block.options.isLong) return
+    if (!props.block.options?.isLong) return
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit()
   }
 
@@ -52,21 +56,25 @@ export const TextInput = (props: Props) => {
 
   return (
     <div
-      class={'flex items-end justify-between pr-2 typebot-input w-full'}
+      class={clsx(
+        'flex justify-between pr-2 typebot-input w-full',
+        props.block.options?.isLong ? 'items-end' : 'items-center'
+      )}
       data-testid="input"
       style={{
-        'max-width': props.block.options.isLong ? undefined : '350px',
+        'max-width': props.block.options?.isLong ? undefined : '350px',
       }}
       onKeyDown={submitWhenEnter}
     >
-      {props.block.options.isLong ? (
+      {props.block.options?.isLong ? (
         <Textarea
           ref={inputRef as HTMLTextAreaElement}
           onInput={handleInput}
           onKeyDown={submitIfCtrlEnter}
           value={inputValue()}
           placeholder={
-            props.block.options?.labels?.placeholder ?? 'Type your answer...'
+            props.block.options?.labels?.placeholder ??
+            defaultTextInputOptions.labels.placeholder
           }
         />
       ) : (
@@ -75,17 +83,14 @@ export const TextInput = (props: Props) => {
           onInput={handleInput}
           value={inputValue()}
           placeholder={
-            props.block.options?.labels?.placeholder ?? 'Type your answer...'
+            props.block.options?.labels?.placeholder ??
+            defaultTextInputOptions.labels.placeholder
           }
         />
       )}
-      <SendButton
-        type="button"
-        isDisabled={inputValue() === ''}
-        class="my-2 ml-2"
-        on:click={submit}
-      >
-        {props.block.options?.labels?.button ?? 'Send'}
+      <SendButton type="button" class="my-2 ml-2" on:click={submit}>
+        {props.block.options?.labels?.button ??
+          defaultTextInputOptions.labels.button}
       </SendButton>
     </div>
   )

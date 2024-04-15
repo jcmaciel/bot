@@ -10,6 +10,7 @@ export const findPublicTypebot = ({ publicId }: Props) =>
     select: {
       version: true,
       groups: true,
+      events: true,
       edges: true,
       settings: true,
       theme: true,
@@ -23,7 +24,6 @@ export const findPublicTypebot = ({ publicId }: Props) =>
             select: {
               id: true,
               plan: true,
-              additionalChatsIndex: true,
               customChatsLimit: true,
               isQuarantined: true,
               isSuspended: true,

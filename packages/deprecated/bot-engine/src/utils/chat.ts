@@ -1,12 +1,8 @@
-import {
-  BubbleBlock,
-  BubbleBlockType,
-  InputBlock,
-  InputBlockType,
-  Block,
-} from '@typebot.io/schemas'
-import { isBubbleBlock, isInputBlock } from '@typebot.io/lib'
+import { BubbleBlock, InputBlock, Block } from '@typebot.io/schemas'
+import { isInputBlock, isBubbleBlock } from '@typebot.io/schemas/helpers'
 import type { TypebotPostMessageData } from 'typebot-js'
+import { BubbleBlockType } from '@typebot.io/schemas/features/blocks/bubbles/constants'
+import { InputBlockType } from '@typebot.io/schemas/features/blocks/inputs/constants'
 
 export const getLastChatBlockType = (
   blocks: Block[]

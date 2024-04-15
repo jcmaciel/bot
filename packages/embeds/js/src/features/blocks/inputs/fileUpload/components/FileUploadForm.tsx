@@ -1,13 +1,14 @@
 import { SendButton } from '@/components/SendButton'
 import { BotContext, InputSubmitContent } from '@/types'
 import { FileInputBlock } from '@typebot.io/schemas'
-import { defaultFileInputOptions } from '@typebot.io/schemas/features/blocks/inputs/file'
 import { createSignal, Match, Show, Switch } from 'solid-js'
 import { Button } from '@/components/Button'
 import { Spinner } from '@/components/Spinner'
 import { uploadFiles } from '../helpers/uploadFiles'
 import { guessApiHost } from '@/utils/guessApiHost'
 import { getRuntimeVariable } from '@typebot.io/env/getRuntimeVariable'
+import { defaultFileInputOptions } from '@typebot.io/schemas/features/blocks/inputs/file/constants'
+import { isDefined } from '@typebot.io/lib'
 
 type Props = {
   context: BotContext
@@ -27,16 +28,33 @@ export const FileUploadForm = (props: Props) => {
     setErrorMessage(undefined)
     const newFiles = Array.from(files)
     const sizeLimit =
-      props.block.options.sizeLimit ??
-      getRuntimeVariable('NEXT_PUBLIC_BOT_FILE_UPLOAD_MAX_SIZE')
+      props.block.options && 'sizeLimit' in props.block.options
+        ? props.block.options?.sizeLimit ??
+          getRuntimeVariable('NEXT_PUBLIC_BOT_FILE_UPLOAD_MAX_SIZE')
+        : undefined
     if (
       sizeLimit &&
       newFiles.some((file) => file.size > sizeLimit * 1024 * 1024)
     )
       return setErrorMessage(`A file is larger than ${sizeLimit}MB`)
-    if (!props.block.options.isMultipleAllowed && files)
+    if (!props.block.options?.isMultipleAllowed && files)
       return startSingleFileUpload(newFiles[0])
-    setSelectedFiles([...selectedFiles(), ...newFiles])
+    if (selectedFiles().length === 0) {
+      setSelectedFiles(newFiles)
+      return
+    }
+    const parsedNewFiles = newFiles.map((newFile) => {
+      let fileName = newFile.name
+      let counter = 1
+      while (selectedFiles().some((file) => file.name === fileName)) {
+        const dotIndex = newFile.name.lastIndexOf('.')
+        const extension = dotIndex !== -1 ? newFile.name.slice(dotIndex) : ''
+        fileName = `${newFile.name.slice(0, dotIndex)}(${counter})${extension}`
+        counter++
+      }
+      return new File([newFile], fileName, { type: newFile.type })
+    })
+    setSelectedFiles([...selectedFiles(), ...parsedNewFiles])
   }
 
   const handleSubmit = async (e: SubmitEvent) => {
@@ -48,12 +66,15 @@ export const FileUploadForm = (props: Props) => {
   const startSingleFileUpload = async (file: File) => {
     if (props.context.isPreview || !props.context.resultId)
       return props.onSubmit({
-        label: `File uploaded`,
+        label:
+          props.block.options?.labels?.success?.single ??
+          defaultFileInputOptions.labels.success.single,
         value: 'http://fake-upload-url.com',
       })
     setIsUploading(true)
     const urls = await uploadFiles({
-      apiHost: props.context.apiHost ?? guessApiHost(),
+      apiHost:
+        props.context.apiHost ?? guessApiHost({ ignoreChatApiUrl: true }),
       files: [
         {
           file,
@@ -66,21 +87,34 @@ export const FileUploadForm = (props: Props) => {
     })
     setIsUploading(false)
     if (urls.length)
-      return props.onSubmit({ label: `File uploaded`, value: urls[0] ?? '' })
+      return props.onSubmit({
+        label:
+          props.block.options?.labels?.success?.single ??
+          defaultFileInputOptions.labels.success.single,
+        value: urls[0] ? encodeUrl(urls[0]) : '',
+      })
     setErrorMessage('An error occured while uploading the file')
   }
   const startFilesUpload = async (files: File[]) => {
     const resultId = props.context.resultId
     if (props.context.isPreview || !resultId)
       return props.onSubmit({
-        label: `${files.length} file${files.length > 1 ? 's' : ''} uploaded`,
+        label:
+          files.length > 1
+            ? (
+                props.block.options?.labels?.success?.multiple ??
+                defaultFileInputOptions.labels.success.multiple
+              ).replaceAll('{total}', files.length.toString())
+            : props.block.options?.labels?.success?.single ??
+              defaultFileInputOptions.labels.success.single,
         value: files
           .map((_, idx) => `http://fake-upload-url.com/${idx}`)
           .join(', '),
       })
     setIsUploading(true)
     const urls = await uploadFiles({
-      apiHost: props.context.apiHost ?? guessApiHost(),
+      apiHost:
+        props.context.apiHost ?? guessApiHost({ ignoreChatApiUrl: true }),
       files: files.map((file) => ({
         file: file,
         input: {
@@ -95,8 +129,15 @@ export const FileUploadForm = (props: Props) => {
     if (urls.length !== files.length)
       return setErrorMessage('An error occured while uploading the files')
     props.onSubmit({
-      label: `${urls.length} file${urls.length > 1 ? 's' : ''} uploaded`,
-      value: urls.join(', '),
+      label:
+        urls.length > 1
+          ? (
+              props.block.options?.labels?.success?.multiple ??
+              defaultFileInputOptions.labels.success.multiple
+            ).replaceAll('{total}', urls.length.toString())
+          : props.block.options?.labels?.success?.single ??
+            defaultFileInputOptions.labels.success.single,
+      value: urls.filter(isDefined).map(encodeUrl).join(', '),
     })
   }
 
@@ -118,7 +159,7 @@ export const FileUploadForm = (props: Props) => {
 
   const skip = () =>
     props.onSkip(
-      props.block.options.labels.skip ?? defaultFileInputOptions.labels.skip
+      props.block.options?.labels?.skip ?? defaultFileInputOptions.labels.skip
     )
 
   return (
@@ -165,14 +206,20 @@ export const FileUploadForm = (props: Props) => {
                 </Show>
                 <p
                   class="text-sm text-gray-500 text-center"
-                  innerHTML={props.block.options.labels.placeholder}
+                  innerHTML={
+                    props.block.options?.labels?.placeholder ??
+                    defaultFileInputOptions.labels.placeholder
+                  }
                 />
               </div>
               <input
                 id="dropzone-file"
                 type="file"
                 class="hidden"
-                multiple={props.block.options.isMultipleAllowed}
+                multiple={
+                  props.block.options?.isMultipleAllowed ??
+                  defaultFileInputOptions.isMultipleAllowed
+                }
                 onChange={(e) => {
                   if (!e.currentTarget.files) return
                   onNewFiles(e.currentTarget.files)
@@ -185,19 +232,19 @@ export const FileUploadForm = (props: Props) => {
       <Show
         when={
           selectedFiles().length === 0 &&
-          props.block.options.isRequired === false
+          props.block.options?.isRequired === false
         }
       >
         <div class="flex justify-end">
           <Button on:click={skip}>
-            {props.block.options.labels.skip ??
+            {props.block.options?.labels?.skip ??
               defaultFileInputOptions.labels.skip}
           </Button>
         </div>
       </Show>
       <Show
         when={
-          props.block.options.isMultipleAllowed &&
+          props.block.options?.isMultipleAllowed &&
           selectedFiles().length > 0 &&
           !isUploading()
         }
@@ -206,17 +253,18 @@ export const FileUploadForm = (props: Props) => {
           <div class="flex gap-2">
             <Show when={selectedFiles().length}>
               <Button variant="secondary" on:click={clearFiles}>
-                {props.block.options.labels.clear ??
+                {props.block.options?.labels?.clear ??
                   defaultFileInputOptions.labels.clear}
               </Button>
             </Show>
             <SendButton type="submit" disableIcon>
-              {props.block.options.labels.button ===
+              {(props.block.options?.labels?.button ??
+                defaultFileInputOptions.labels.button) ===
               defaultFileInputOptions.labels.button
                 ? `Upload ${selectedFiles().length} file${
                     selectedFiles().length > 1 ? 's' : ''
                   }`
-                : props.block.options.labels.button}
+                : props.block.options?.labels?.button}
             </SendButton>
           </div>
         </div>
@@ -265,3 +313,10 @@ const FileIcon = () => (
     <polyline points="13 2 13 9 20 9" />
   </svg>
 )
+
+const encodeUrl = (url: string): string => {
+  const fileName = url.split('/').pop()
+  if (!fileName) return url
+  const encodedFileName = encodeURIComponent(fileName)
+  return url.replace(fileName, encodedFileName)
+}

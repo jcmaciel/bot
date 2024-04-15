@@ -1,23 +1,53 @@
 import { streamingMessage } from '@/utils/streamingMessageSignal'
-import { createEffect, createSignal } from 'solid-js'
+import { For, createEffect, createSignal } from 'solid-js'
+import { marked } from 'marked'
+import domPurify from 'dompurify'
+import { isNotEmpty } from '@typebot.io/lib'
 
 type Props = {
   streamingMessageId: string
 }
 
 export const StreamingBubble = (props: Props) => {
-  let ref: HTMLDivElement | undefined
-  const [content, setContent] = createSignal<string>('')
+  const [content, setContent] = createSignal<string[]>([])
+
+  marked.use({
+    renderer: {
+      link: (href, _title, text) => {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`
+      },
+    },
+  })
 
   createEffect(() => {
-    if (streamingMessage()?.id === props.streamingMessageId)
-      setContent(streamingMessage()?.content ?? '')
+    if (streamingMessage()?.id !== props.streamingMessageId) return []
+    setContent(
+      streamingMessage()
+        ?.content.split('```')
+        .map((block, index) => {
+          if (index % 2 === 0) {
+            return block.split('\n\n').map((line) =>
+              domPurify.sanitize(marked.parse(line), {
+                ADD_ATTR: ['target'],
+              })
+            )
+          } else {
+            return [
+              domPurify.sanitize(marked.parse('```' + block + '```'), {
+                ADD_ATTR: ['target'],
+              }),
+            ]
+          }
+        })
+        .flat()
+        .filter(isNotEmpty) ?? []
+    )
   })
 
   return (
-    <div class="flex flex-col animate-fade-in" ref={ref}>
+    <div class="flex flex-col animate-fade-in">
       <div class="flex w-full items-center">
-        <div class="flex relative items-start typebot-host-bubble">
+        <div class="flex relative items-start typebot-host-bubble max-w-full">
           <div
             class="flex items-center absolute px-4 py-2 bubble-typing "
             style={{
@@ -28,10 +58,10 @@ export const StreamingBubble = (props: Props) => {
           />
           <div
             class={
-              'overflow-hidden text-fade-in mx-4 my-2 whitespace-pre-wrap slate-html-container relative text-ellipsis opacity-100 h-full'
+              'flex flex-col overflow-hidden text-fade-in mx-4 my-2 relative text-ellipsis h-full gap-6'
             }
           >
-            {content()}
+            <For each={content()}>{(line) => <span innerHTML={line} />}</For>
           </div>
         </div>
       </div>

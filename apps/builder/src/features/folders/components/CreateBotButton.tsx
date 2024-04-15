@@ -3,15 +3,17 @@ import { PlusIcon } from '@/components/icons'
 import { useRouter } from 'next/router'
 import { stringify } from 'qs'
 import React from 'react'
-import { useScopedI18n } from '@/locales'
+import { useTranslate } from '@tolgee/react'
+import { useTypebotDnd } from '../TypebotDndProvider'
 
 export const CreateBotButton = ({
   folderId,
   isFirstBot,
   ...props
 }: { folderId?: string; isFirstBot: boolean } & ButtonProps) => {
-  const scopedT = useScopedI18n('folders.createTypebotButton')
+  const { t } = useTranslate()
   const router = useRouter()
+  const { draggedTypebot } = useTypebotDnd()
 
   const handleClick = () =>
     router.push(
@@ -28,6 +30,7 @@ export const CreateBotButton = ({
       paddingX={6}
       whiteSpace={'normal'}
       colorScheme="blue"
+      opacity={draggedTypebot ? 0.3 : 1}
       {...props}
     >
       <VStack spacing="6">
@@ -39,7 +42,7 @@ export const CreateBotButton = ({
           textAlign="center"
           mt="6"
         >
-          {scopedT('label')}
+          {t('folders.createTypebotButton.label')}
         </Text>
       </VStack>
     </Button>

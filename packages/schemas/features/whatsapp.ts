@@ -1,6 +1,9 @@
-import { z } from 'zod'
-import { credentialsBaseSchema } from './blocks/baseSchemas'
-import { ComparisonOperators, LogicalOperator } from './blocks/logic/condition'
+import { z } from '../zod'
+import { credentialsBaseSchema } from './blocks/shared'
+import {
+  ComparisonOperators,
+  LogicalOperator,
+} from './blocks/logic/condition/constants'
 
 const mediaSchema = z.object({ link: z.string() })
 
@@ -134,6 +137,15 @@ export const incomingMessageSchema = z.discriminatedUnion('type', [
     document: z.object({ id: z.string() }),
     timestamp: z.string(),
   }),
+  z.object({
+    from: z.string(),
+    type: z.literal('location'),
+    location: z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+    }),
+    timestamp: z.string(),
+  }),
 ])
 
 export const whatsAppWebhookRequestBodySchema = z.object({
@@ -161,6 +173,10 @@ export const whatsAppWebhookRequestBodySchema = z.object({
     })
   ),
 })
+
+export type WhatsAppWebhookRequestBody = z.infer<
+  typeof whatsAppWebhookRequestBodySchema
+>
 
 export const whatsAppCredentialsSchema = z
   .object({
@@ -201,7 +217,7 @@ export const whatsAppSettingsSchema = z.object({
     .describe('Expiration delay in hours after latest interaction'),
 })
 
-export const defaultSessionExpiryTimeout = 12
+export const defaultSessionExpiryTimeout = 4
 
 export type WhatsAppIncomingMessage = z.infer<typeof incomingMessageSchema>
 export type WhatsAppSendingMessage = z.infer<typeof sendingMessageSchema>

@@ -1,5 +1,5 @@
 import test, { expect } from '@playwright/test'
-import { importTypebotInDatabase } from '@typebot.io/lib/playwright/databaseActions'
+import { importTypebotInDatabase } from '@typebot.io/playwright/databaseActions'
 import { createId } from '@paralleldrive/cuid2'
 import { getTestAsset } from '@/test/utils/playwright'
 
@@ -16,7 +16,7 @@ test.describe('AB Test block', () => {
     await page.getByLabel('Percent of users to follow A:').fill('100')
     await expect(page.getByText('A 100%')).toBeVisible()
     await expect(page.getByText('B 0%')).toBeVisible()
-    await page.getByRole('button', { name: 'Preview' }).click()
+    await page.getByRole('button', { name: 'Test' }).click()
     await expect(
       page.locator('typebot-standard').getByText('How are you?')
     ).toBeVisible()

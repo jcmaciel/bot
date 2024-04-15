@@ -1,14 +1,13 @@
-import { Variable, WebhookResponse } from '@typebot.io/schemas'
+import { Variable, HttpResponse } from '@typebot.io/schemas'
 import { sendRequest } from '@typebot.io/lib'
-import { getViewerUrl } from '@typebot.io/lib/getViewerUrl'
 
 export const executeWebhook = (
   typebotId: string,
   variables: Variable[],
   { blockId }: { blockId: string }
 ) =>
-  sendRequest<WebhookResponse>({
-    url: `${getViewerUrl()}/api/typebots/${typebotId}/blocks/${blockId}/executeWebhook`,
+  sendRequest<HttpResponse>({
+    url: `/api/typebots/${typebotId}/blocks/${blockId}/testWebhook`,
     method: 'POST',
     body: {
       variables,

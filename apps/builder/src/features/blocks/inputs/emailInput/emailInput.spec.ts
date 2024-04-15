@@ -1,12 +1,9 @@
 import test, { expect } from '@playwright/test'
-import { createTypebots } from '@typebot.io/lib/playwright/databaseActions'
-import { parseDefaultGroupWithBlock } from '@typebot.io/lib/playwright/databaseHelpers'
-import {
-  defaultEmailInputOptions,
-  InputBlockType,
-  invalidEmailDefaultRetryMessage,
-} from '@typebot.io/schemas'
+import { createTypebots } from '@typebot.io/playwright/databaseActions'
+import { parseDefaultGroupWithBlock } from '@typebot.io/playwright/databaseHelpers'
 import { createId } from '@paralleldrive/cuid2'
+import { InputBlockType } from '@typebot.io/schemas/features/blocks/inputs/constants'
+import { defaultEmailInputOptions } from '@typebot.io/schemas/features/blocks/inputs/email/constants'
 
 test.describe('Email input block', () => {
   test('options should work', async ({ page }) => {
@@ -16,20 +13,18 @@ test.describe('Email input block', () => {
         id: typebotId,
         ...parseDefaultGroupWithBlock({
           type: InputBlockType.EMAIL,
-          options: defaultEmailInputOptions,
         }),
       },
     ])
 
     await page.goto(`/typebots/${typebotId}/edit`)
 
-    await page.click('text=Preview')
+    await page.click('text=Test')
     await expect(
       page.locator(
         `input[placeholder="${defaultEmailInputOptions.labels.placeholder}"]`
       )
     ).toHaveAttribute('type', 'email')
-    await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled()
 
     await page.click(`text=${defaultEmailInputOptions.labels.placeholder}`)
     await page.fill(
@@ -39,7 +34,7 @@ test.describe('Email input block', () => {
     await expect(page.locator('text=Your email...')).toBeVisible()
     await page.getByLabel('Button label:').fill('Go')
     await page.fill(
-      `input[value="${invalidEmailDefaultRetryMessage}"]`,
+      `input[value="${defaultEmailInputOptions.retryMessageContent}"]`,
       'Try again bro'
     )
 

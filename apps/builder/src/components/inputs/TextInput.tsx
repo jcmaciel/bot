@@ -8,6 +8,7 @@ import {
   HStack,
   Input as ChakraInput,
   InputProps,
+  Stack,
 } from '@chakra-ui/react'
 import { Variable } from '@typebot.io/schemas'
 import React, {
@@ -23,6 +24,7 @@ import { env } from '@typebot.io/env'
 import { MoreInfoTooltip } from '../MoreInfoTooltip'
 
 export type TextInputProps = {
+  forceDebounce?: boolean
   defaultValue?: string
   onChange?: (value: string) => void
   debounceTimeout?: number
@@ -33,6 +35,8 @@ export type TextInputProps = {
   isRequired?: boolean
   placeholder?: string
   isDisabled?: boolean
+  direction?: 'row' | 'column'
+  width?: 'full'
 } & Pick<
   InputProps,
   | 'autoComplete'
@@ -42,6 +46,7 @@ export type TextInputProps = {
   | 'autoFocus'
   | 'size'
   | 'maxWidth'
+  | 'flexShrink'
 >
 
 export const TextInput = forwardRef(function TextInput(
@@ -58,11 +63,15 @@ export const TextInput = forwardRef(function TextInput(
     autoComplete,
     isDisabled,
     autoFocus,
+    forceDebounce,
     onChange: _onChange,
     onFocus,
     onKeyUp,
     size,
     maxWidth,
+    direction = 'column',
+    width,
+    flexShrink,
   }: TextInputProps,
   ref
 ) {
@@ -76,7 +85,7 @@ export const TextInput = forwardRef(function TextInput(
   const onChange = useDebouncedCallback(
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     _onChange ?? (() => {}),
-    env.NEXT_PUBLIC_E2E_TEST ? 0 : debounceTimeout
+    env.NEXT_PUBLIC_E2E_TEST && !forceDebounce ? 0 : debounceTimeout
   )
 
   useEffect(() => {
@@ -134,9 +143,16 @@ export const TextInput = forwardRef(function TextInput(
   )
 
   return (
-    <FormControl isRequired={isRequired}>
+    <FormControl
+      isRequired={isRequired}
+      as={direction === 'column' ? Stack : HStack}
+      justifyContent="space-between"
+      width={label || width === 'full' ? 'full' : 'auto'}
+      spacing={direction === 'column' ? 2 : 3}
+      flexShrink={flexShrink}
+    >
       {label && (
-        <FormLabel>
+        <FormLabel display="flex" flexShrink={0} gap="1" mb="0" mr="0">
           {label}{' '}
           {moreInfoTooltip && (
             <MoreInfoTooltip>{moreInfoTooltip}</MoreInfoTooltip>
@@ -151,7 +167,7 @@ export const TextInput = forwardRef(function TextInput(
       ) : (
         Input
       )}
-      {helperText && <FormHelperText>{helperText}</FormHelperText>}
+      {helperText && <FormHelperText mt="0">{helperText}</FormHelperText>}
     </FormControl>
   )
 })

@@ -1,16 +1,12 @@
-import {
-  BubbleBlockType,
-  ChatReply,
-  VideoBubbleContentType,
-} from '@typebot.io/schemas'
+import { ContinueChatResponse } from '@typebot.io/schemas'
 import { WhatsAppSendingMessage } from '@typebot.io/schemas/features/whatsapp'
-import { convertRichTextToWhatsAppText } from './convertRichTextToWhatsAppText'
 import { isSvgSrc } from '@typebot.io/lib/utils'
-
-const mp4HttpsUrlRegex = /^https:\/\/.*\.mp4$/
+import { BubbleBlockType } from '@typebot.io/schemas/features/blocks/bubbles/constants'
+import { VideoBubbleContentType } from '@typebot.io/schemas/features/blocks/bubbles/video/constants'
+import { convertRichTextToMarkdown } from '@typebot.io/lib/markdown/convertRichTextToMarkdown'
 
 export const convertMessageToWhatsAppMessage = (
-  message: ChatReply['messages'][number]
+  message: ContinueChatResponse['messages'][number]
 ): WhatsAppSendingMessage | undefined => {
   switch (message.type) {
     case BubbleBlockType.TEXT: {
@@ -19,7 +15,9 @@ export const convertMessageToWhatsAppMessage = (
       return {
         type: 'text',
         text: {
-          body: convertRichTextToWhatsAppText(message.content.richText),
+          body: convertRichTextToMarkdown(message.content.richText, {
+            flavour: 'whatsapp',
+          }),
         },
       }
     }
@@ -45,8 +43,7 @@ export const convertMessageToWhatsAppMessage = (
     case BubbleBlockType.VIDEO: {
       if (
         !message.content.url ||
-        (message.content.type !== VideoBubbleContentType.URL &&
-          isVideoUrlNotCompatible(message.content.url))
+        message.content.type !== VideoBubbleContentType.URL
       )
         return
       return {
@@ -71,9 +68,6 @@ export const convertMessageToWhatsAppMessage = (
 
 export const isImageUrlNotCompatible = (url: string) =>
   !isHttpUrl(url) || isGifFileUrl(url) || isSvgSrc(url)
-
-export const isVideoUrlNotCompatible = (url: string) =>
-  !mp4HttpsUrlRegex.test(url)
 
 export const isHttpUrl = (text: string) =>
   text.startsWith('http://') || text.startsWith('https://')

@@ -5,13 +5,13 @@ import { useUser } from '@/features/account/hooks/useUser'
 import { isNotDefined } from '@typebot.io/lib'
 import Link from 'next/link'
 import { EmojiOrImageIcon } from '@/components/EmojiOrImageIcon'
-import { useScopedI18n } from '@/locales'
+import { useTranslate } from '@tolgee/react'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { WorkspaceDropdown } from '@/features/workspace/components/WorkspaceDropdown'
 import { WorkspaceSettingsModal } from '@/features/workspace/components/WorkspaceSettingsModal'
 
 export const DashboardHeader = () => {
-  const scopedT = useScopedI18n('dashboard.header')
+  const { t } = useTranslate()
   const { user, logOut } = useUser()
   const { workspace, switchWorkspace, createWorkspace } = useWorkspace()
 
@@ -37,7 +37,7 @@ export const DashboardHeader = () => {
           />
         </Link>
         <HStack>
-          {user && workspace && (
+          {user && workspace && !workspace.isPastDue && (
             <WorkspaceSettingsModal
               isOpen={isOpen}
               onClose={onClose}
@@ -45,13 +45,15 @@ export const DashboardHeader = () => {
               workspace={workspace}
             />
           )}
-          <Button
-            leftIcon={<SettingsIcon />}
-            onClick={onOpen}
-            isLoading={isNotDefined(workspace)}
-          >
-            {scopedT('settingsButton.label')}
-          </Button>
+          {!workspace?.isPastDue && (
+            <Button
+              leftIcon={<SettingsIcon />}
+              onClick={onOpen}
+              isLoading={isNotDefined(workspace)}
+            >
+              {t('dashboard.header.settingsButton.label')}
+            </Button>
+          )}
           <WorkspaceDropdown
             currentWorkspace={workspace}
             onLogoutClick={logOut}

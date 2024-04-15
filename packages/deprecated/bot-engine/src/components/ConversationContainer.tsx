@@ -8,7 +8,8 @@ import {
   Theme,
   VariableWithValue,
 } from '@typebot.io/schemas'
-import { byId, isDefined, isInputBlock, isNotDefined } from '@typebot.io/lib'
+import { byId, isDefined, isNotDefined } from '@typebot.io/lib'
+import { isInputBlock } from '@typebot.io/schemas/helpers'
 import { animateScroll as scroll } from 'react-scroll'
 import { LinkedTypebot, useTypebot } from '@/providers/TypebotProvider'
 import { setCssVariablesValue } from '@/features/theme'
@@ -57,7 +58,7 @@ export const ConversationContainer = ({
       if (!nextGroup) return
       onNewGroupVisible({
         id: 'edgeId',
-        from: { groupId: 'block', blockId: 'block' },
+        from: { blockId: 'block' },
         to: { groupId },
       })
       return setDisplayedGroups([

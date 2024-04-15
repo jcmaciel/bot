@@ -14,15 +14,19 @@ import {
   ModalHeader,
   ModalOverlay,
   Stack,
+  Progress,
+  Text,
 } from '@chakra-ui/react'
 import { TRPCError } from '@trpc/server'
 import { unparse } from 'papaparse'
 import { useState } from 'react'
-import { parseResultHeader } from '@typebot.io/lib/results'
+import { parseResultHeader } from '@typebot.io/results/parseResultHeader'
+import { convertResultsToTableData } from '@typebot.io/results/convertResultsToTableData'
+import { parseColumnsOrder } from '@typebot.io/results/parseColumnsOrder'
+import { parseUniqueKey } from '@typebot.io/lib/parseUniqueKey'
 import { useResults } from '../../ResultsProvider'
-import { parseColumnOrder } from '../../helpers/parseColumnsOrder'
-import { convertResultsToTableData } from '../../helpers/convertResultsToTableData'
 import { byId, isDefined } from '@typebot.io/lib'
+import { Typebot } from '@typebot.io/schemas'
 
 type Props = {
   isOpen: boolean
@@ -34,9 +38,10 @@ export const ExportAllResultsModal = ({ isOpen, onClose }: Props) => {
   const workspaceId = typebot?.workspaceId
   const typebotId = typebot?.id
   const { showToast } = useToast()
-  const { resultHeader: existingResultHeader } = useResults()
+  const { resultHeader: existingResultHeader, totalResults } = useResults()
   const trpcContext = trpc.useContext()
   const [isExportLoading, setIsExportLoading] = useState(false)
+  const [exportProgressValue, setExportProgressValue] = useState(0)
 
   const [areDeletedBlocksIncluded, setAreDeletedBlocksIncluded] =
     useState(false)
@@ -54,18 +59,22 @@ export const ExportAllResultsModal = ({ isOpen, onClose }: Props) => {
     if (!workspaceId || !typebotId) return []
     const allResults = []
     let cursor: string | undefined
+    setExportProgressValue(0)
     do {
       try {
         const { results, nextCursor } =
           await trpcContext.results.getResults.fetch({
             typebotId,
-            limit: '200',
+            limit: 100,
             cursor,
+            timeFilter: 'allTime',
           })
         allResults.push(...results)
+        setExportProgressValue((allResults.length / totalResults) * 100)
         cursor = nextCursor ?? undefined
       } catch (error) {
         showToast({ description: (error as TRPCError).message })
+        return []
       }
     } while (cursor)
 
@@ -79,17 +88,22 @@ export const ExportAllResultsModal = ({ isOpen, onClose }: Props) => {
 
     const results = await getAllResults()
 
+    if (!results.length) return setIsExportLoading(false)
+
     const resultHeader = areDeletedBlocksIncluded
       ? parseResultHeader(
           publishedTypebot,
-          linkedTypebotsData?.typebots,
+          linkedTypebotsData?.typebots as Pick<
+            Typebot,
+            'groups' | 'variables'
+          >[],
           results
         )
       : existingResultHeader
 
     const dataToUnparse = convertResultsToTableData(results, resultHeader)
 
-    const headerIds = parseColumnOrder(
+    const headerIds = parseColumnsOrder(
       typebot?.resultsTablePreferences?.columnsOrder,
       resultHeader
     ).reduce<string[]>((currentHeaderIds, columnId) => {
@@ -140,7 +154,17 @@ export const ExportAllResultsModal = ({ isOpen, onClose }: Props) => {
             initialValue={false}
             onCheckChange={setAreDeletedBlocksIncluded}
           />
-          <AlertInfo>The export may take up to 1 minute.</AlertInfo>
+          {totalResults > 2000 ? (
+            <AlertInfo>The export may take a while.</AlertInfo>
+          ) : (
+            <AlertInfo>The export may take up to 1 minute.</AlertInfo>
+          )}
+          {isExportLoading && (
+            <Stack>
+              <Text>Fetching all results...</Text>
+              <Progress value={exportProgressValue} borderRadius="md" />
+            </Stack>
+          )}
         </ModalBody>
         <ModalFooter as={HStack}>
           <Button onClick={onClose} variant="ghost" size="sm">
@@ -159,13 +183,4 @@ export const ExportAllResultsModal = ({ isOpen, onClose }: Props) => {
       </ModalContent>
     </Modal>
   )
-}
-
-export const parseUniqueKey = (
-  key: string,
-  existingKeys: string[],
-  count = 0
-): string => {
-  if (!existingKeys.includes(key)) return key
-  return parseUniqueKey(`${key} (${count + 1})`, existingKeys, count + 1)
 }

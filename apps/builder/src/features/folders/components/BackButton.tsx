@@ -3,10 +3,10 @@ import { ChevronLeftIcon } from '@/components/icons'
 import { useTypebotDnd } from '../TypebotDndProvider'
 import Link from 'next/link'
 import React, { useMemo } from 'react'
-import { useI18n } from '@/locales'
+import { useTranslate } from '@tolgee/react'
 
 export const BackButton = ({ id }: { id: string | null }) => {
-  const t = useI18n()
+  const { t } = useTranslate()
   const { draggedTypebot, setMouseOverFolderId, mouseOverFolderId } =
     useTypebotDnd()
 
@@ -23,8 +23,8 @@ export const BackButton = ({ id }: { id: string | null }) => {
       href={id ? `/typebots/folders/${id}` : '/typebots'}
       leftIcon={<ChevronLeftIcon />}
       variant={'outline'}
-      colorScheme={isTypebotOver ? 'blue' : 'gray'}
-      borderWidth={isTypebotOver ? '3px' : '1px'}
+      colorScheme={isTypebotOver || draggedTypebot ? 'blue' : 'gray'}
+      borderWidth={isTypebotOver ? '2px' : '1px'}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

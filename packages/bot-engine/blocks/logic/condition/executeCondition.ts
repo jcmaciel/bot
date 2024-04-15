@@ -1,20 +1,22 @@
 import { isNotDefined, isDefined } from '@typebot.io/lib'
+import { Comparison, Condition, Variable } from '@typebot.io/schemas'
+import { findUniqueVariableValue } from '@typebot.io/variables/findUniqueVariableValue'
+import { parseVariables } from '@typebot.io/variables/parseVariables'
 import {
-  Comparison,
-  ComparisonOperators,
-  Condition,
   LogicalOperator,
-  Variable,
-} from '@typebot.io/schemas'
-import { findUniqueVariableValue } from '../../../variables/findUniqueVariableValue'
-import { parseVariables } from '../../../variables/parseVariables'
+  ComparisonOperators,
+  defaultConditionItemContent,
+} from '@typebot.io/schemas/features/blocks/logic/condition/constants'
 
 export const executeCondition =
   (variables: Variable[]) =>
-  (condition: Condition): boolean =>
-    condition.logicalOperator === LogicalOperator.AND
+  (condition: Condition): boolean => {
+    if (!condition.comparisons) return false
+    return (condition.logicalOperator ??
+      defaultConditionItemContent.logicalOperator) === LogicalOperator.AND
       ? condition.comparisons.every(executeComparison(variables))
       : condition.comparisons.some(executeComparison(variables))
+  }
 
 const executeComparison =
   (variables: Variable[]) =>
@@ -30,6 +32,14 @@ const executeComparison =
     if (isNotDefined(comparison.comparisonOperator)) return false
     switch (comparison.comparisonOperator) {
       case ComparisonOperators.CONTAINS: {
+        if (Array.isArray(inputValue)) {
+          const equal = (a: string | null, b: string | null) => {
+            if (typeof a === 'string' && typeof b === 'string')
+              return a.normalize() === b.normalize()
+            return a !== b
+          }
+          return compare(equal, inputValue, value, 'some')
+        }
         const contains = (a: string | null, b: string | null) => {
           if (b === '' || !b || !a) return false
           return a
@@ -41,6 +51,14 @@ const executeComparison =
         return compare(contains, inputValue, value, 'some')
       }
       case ComparisonOperators.NOT_CONTAINS: {
+        if (Array.isArray(inputValue)) {
+          const notEqual = (a: string | null, b: string | null) => {
+            if (typeof a === 'string' && typeof b === 'string')
+              return a.normalize() !== b.normalize()
+            return a !== b
+          }
+          return compare(notEqual, inputValue, value)
+        }
         const notContains = (a: string | null, b: string | null) => {
           if (b === '' || !b || !a) return true
           return !a
@@ -124,14 +142,18 @@ const executeComparison =
       case ComparisonOperators.MATCHES_REGEX: {
         const matchesRegex = (a: string | null, b: string | null) => {
           if (b === '' || !b || !a) return false
-          return new RegExp(b).test(a)
+          const regex = preprocessRegex(b)
+          if (!regex) return false
+          return new RegExp(regex.pattern, regex.flags).test(a)
         }
         return compare(matchesRegex, inputValue, value, 'some')
       }
       case ComparisonOperators.NOT_MATCH_REGEX: {
         const matchesRegex = (a: string | null, b: string | null) => {
           if (b === '' || !b || !a) return false
-          return !new RegExp(b).test(a)
+          const regex = preprocessRegex(b)
+          if (!regex) return true
+          return !new RegExp(regex.pattern, regex.flags).test(a)
         }
         return compare(matchesRegex, inputValue, value)
       }
@@ -167,4 +189,13 @@ const parseDateOrNumber = (value: string): number => {
     return time
   }
   return parsed
+}
+
+const preprocessRegex = (regex: string) => {
+  const regexWithFlags = regex.match(/\/(.+)\/([gimuy]*)$/)
+
+  if (regexWithFlags)
+    return { pattern: regexWithFlags[1], flags: regexWithFlags[2] }
+
+  return { pattern: regex }
 }

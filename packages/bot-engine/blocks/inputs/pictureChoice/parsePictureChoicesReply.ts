@@ -1,6 +1,7 @@
 import { PictureChoiceBlock, SessionState } from '@typebot.io/schemas'
 import { ParsedReply } from '../../../types'
 import { injectVariableValuesInPictureChoiceBlock } from './injectVariableValuesInPictureChoiceBlock'
+import { isNotEmpty } from '@typebot.io/lib/utils'
 
 export const parsePictureChoicesReply =
   (state: SessionState) =>
@@ -8,7 +9,7 @@ export const parsePictureChoicesReply =
     const displayedItems = injectVariableValuesInPictureChoiceBlock(
       state.typebotsQueue[0].typebot.variables
     )(block).items
-    if (block.options.isMultipleChoice) {
+    if (block.options?.isMultipleChoice) {
       const longestItemsFirst = [...displayedItems].sort(
         (a, b) => (b.title?.length ?? 0) - (a.title?.length ?? 0)
       )
@@ -64,7 +65,9 @@ export const parsePictureChoicesReply =
       return {
         status: 'success',
         reply: matchedItems
-          .map((item) => item.title ?? item.pictureSrc ?? '')
+          .map((item) =>
+            isNotEmpty(item.title) ? item.title : item.pictureSrc ?? ''
+          )
           .join(', '),
       }
     }
@@ -74,18 +77,15 @@ export const parsePictureChoicesReply =
     const matchedItem = longestItemsFirst.find(
       (item) =>
         item.id === inputValue ||
-        item.title
-          ?.toLowerCase()
-          .trim()
-          .includes(inputValue.toLowerCase().trim()) ||
-        item.pictureSrc
-          ?.toLowerCase()
-          .trim()
-          .includes(inputValue.toLowerCase().trim())
+        item.title?.toLowerCase().trim() === inputValue.toLowerCase().trim() ||
+        item.pictureSrc?.toLowerCase().trim() ===
+          inputValue.toLowerCase().trim()
     )
     if (!matchedItem) return { status: 'fail' }
     return {
       status: 'success',
-      reply: matchedItem.title ?? matchedItem.pictureSrc ?? '',
+      reply: isNotEmpty(matchedItem.title)
+        ? matchedItem.title
+        : matchedItem.pictureSrc ?? '',
     }
   }

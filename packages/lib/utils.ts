@@ -1,25 +1,3 @@
-import type {
-  BubbleBlock,
-  ChoiceInputBlock,
-  ConditionBlock,
-  InputBlock,
-  IntegrationBlock,
-  LogicBlock,
-  Block,
-  TextInputBlock,
-  TextBubbleBlock,
-  WebhookBlock,
-  BlockType,
-  ImageBubbleBlock,
-  VideoBubbleBlock,
-  BlockWithOptionsType,
-} from '@typebot.io/schemas'
-import { InputBlockType } from '@typebot.io/schemas/features/blocks/inputs/enums'
-import { BubbleBlockType } from '@typebot.io/schemas/features/blocks/bubbles/enums'
-import { LogicBlockType } from '@typebot.io/schemas/features/blocks/logic/enums'
-import { IntegrationBlockType } from '@typebot.io/schemas/features/blocks/integrations/enums'
-import { PictureChoiceBlock } from '@typebot.io/schemas/features/blocks/inputs/pictureChoice'
-
 export const sendRequest = async <ResponseData>(
   params:
     | {
@@ -28,10 +6,11 @@ export const sendRequest = async <ResponseData>(
         body?: Record<string, unknown> | FormData
       }
     | string
-): Promise<{ data?: ResponseData; error?: Error }> => {
+): Promise<{ data?: ResponseData; error?: Error; response?: Response }> => {
+  let response
   try {
     const url = typeof params === 'string' ? params : params.url
-    const response = await fetch(url, {
+    response = await fetch(url, {
       method: typeof params === 'string' ? 'GET' : params.method,
       mode: 'cors',
       headers:
@@ -47,10 +26,10 @@ export const sendRequest = async <ResponseData>(
     })
     const data = await response.json()
     if (!response.ok) throw 'error' in data ? data.error : data
-    return { data }
+    return { data, response }
   } catch (e) {
     console.error(e)
-    return { error: e as Error }
+    return { error: e as Error, response }
   }
 }
 
@@ -62,84 +41,13 @@ export const isNotDefined = <T>(
   value: T | undefined | null
 ): value is undefined | null => value === undefined || value === null
 
-export const isEmpty = (value: string | undefined | null): value is undefined =>
+export const isEmpty = (
+  value: string | undefined | null
+): value is undefined | null =>
   value === undefined || value === null || value === ''
 
 export const isNotEmpty = (value: string | undefined | null): value is string =>
   value !== undefined && value !== null && value !== ''
-
-export const isInputBlock = (block: Block): block is InputBlock =>
-  (Object.values(InputBlockType) as string[]).includes(block.type)
-
-export const isBubbleBlock = (block: Block): block is BubbleBlock =>
-  (Object.values(BubbleBlockType) as string[]).includes(block.type)
-
-export const isLogicBlock = (block: Block): block is LogicBlock =>
-  (Object.values(LogicBlockType) as string[]).includes(block.type)
-
-export const isTextBubbleBlock = (block: Block): block is TextBubbleBlock =>
-  block.type === BubbleBlockType.TEXT
-
-export const isMediaBubbleBlock = (
-  block: Block
-): block is ImageBubbleBlock | VideoBubbleBlock =>
-  block.type === BubbleBlockType.IMAGE || block.type === BubbleBlockType.VIDEO
-
-export const isTextInputBlock = (block: Block): block is TextInputBlock =>
-  block.type === InputBlockType.TEXT
-
-export const isChoiceInput = (block: Block): block is ChoiceInputBlock =>
-  block.type === InputBlockType.CHOICE
-
-export const isPictureChoiceInput = (
-  block: Block
-): block is PictureChoiceBlock => block.type === InputBlockType.PICTURE_CHOICE
-
-export const isSingleChoiceInput = (block: Block): block is ChoiceInputBlock =>
-  block.type === InputBlockType.CHOICE &&
-  'options' in block &&
-  !block.options.isMultipleChoice
-
-export const isConditionBlock = (block: Block): block is ConditionBlock =>
-  block.type === LogicBlockType.CONDITION
-
-export const isIntegrationBlock = (block: Block): block is IntegrationBlock =>
-  (Object.values(IntegrationBlockType) as string[]).includes(block.type)
-
-export const isWebhookBlock = (block: Block): block is WebhookBlock =>
-  [
-    IntegrationBlockType.WEBHOOK,
-    IntegrationBlockType.PABBLY_CONNECT,
-    IntegrationBlockType.ZAPIER,
-    IntegrationBlockType.MAKE_COM,
-  ].includes(block.type as IntegrationBlockType)
-
-export const isBubbleBlockType = (type: BlockType): type is BubbleBlockType =>
-  (Object.values(BubbleBlockType) as string[]).includes(type)
-
-export const blockTypeHasOption = (
-  type: BlockType
-): type is BlockWithOptionsType =>
-  (Object.values(InputBlockType) as string[])
-    .concat(Object.values(LogicBlockType))
-    .concat(Object.values(IntegrationBlockType))
-    .includes(type)
-
-export const blockTypeHasItems = (
-  type: BlockType
-): type is
-  | LogicBlockType.CONDITION
-  | InputBlockType.CHOICE
-  | LogicBlockType.AB_TEST =>
-  type === LogicBlockType.CONDITION ||
-  type === InputBlockType.CHOICE ||
-  type === LogicBlockType.AB_TEST ||
-  type === InputBlockType.PICTURE_CHOICE
-
-export const blockHasItems = (
-  block: Block
-): block is ConditionBlock | ChoiceInputBlock =>
-  'items' in block && isDefined(block.items)
 
 export const byId = (id?: string) => (obj: { id: string }) => obj.id === id
 
@@ -241,9 +149,6 @@ export const getAtPath = <T>(obj: T, path: string): unknown => {
   }
   return current
 }
-
-export const parseGroupTitle = (title: string) =>
-  isEmpty(title) ? 'Untitled' : title
 
 export const isSvgSrc = (src: string | undefined) =>
   src?.startsWith('data:image/svg') || src?.endsWith('.svg')
